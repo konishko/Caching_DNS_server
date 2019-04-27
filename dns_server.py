@@ -103,7 +103,7 @@ class DNSServer:
             length += 2
 
             queries.append({'name':name, 'type':type, 'class':cls,
-                            'query':data[this_offset - length:this_offset + 1]})
+                            'query':data[this_offset - length:this_offset + 1].decode('cp866')})
 
         return queries, this_offset - offset
 
@@ -159,7 +159,7 @@ class DNSServer:
             answers.append({'name':name, 'type':type, 'place time':time.time(),
                             'ttl' : ttl, 'r_data':r_containing,
                             'auth': is_authoritative,
-                            'answer':data[this_offset - length:this_offset]})
+                            'answer':data[this_offset - length:this_offset].decode('cp866')})
 
         return answers, this_offset - offset
 
@@ -173,19 +173,18 @@ class DNSServer:
 
         responce.extend([0, 1, 0, len(answers), 0, 0, 0, 0])
 
-        responce.extend(query)
+        responce.extend(query.encode('cp866'))
 
         for answer in answers:
-            responce.extend(answer)
+            responce.extend(answer.encode('cp866'))
 
-        print(responce)
         return bytes(responce)
 
     def run(self):
         with(open('config.txt', 'r')) as file:
             forward = file.readline()
 
-        with(open('cache.json', 'w')) as file:
+        with(open('cache.json', 'r')) as file:
             if os.stat('cache.json').st_size != 0:
                 self.cache = json.load(file)
 
@@ -196,16 +195,14 @@ class DNSServer:
 
             for query in queries:
                 try:
-                    print(query)
-                    record = self.cache[(query['type'], query['name'])]
+                    record = self.cache[str(query['type']) + str(query['name'])]
                     if record['ttl'] > time.time() - record['place time']:
-                        print(record)
                         responce = self.create_responce_from_cache(query['query'], record['answers'], flags[2], transaction_id, flags)
                         self.sock.sendto(responce, addr)
                         in_cache = True
 
                     else:
-                        self.cache.pop((query['type'], query['name']))
+                        self.cache.pop(str(query['type']) + str(query['name']))
 
                     with(open('cache.json', 'w')) as file:
                         json.dump(self.cache, file)
@@ -226,10 +223,10 @@ class DNSServer:
                 for records in (answers, authority_rrs, additional):
                     for answer in records:
                         try:
-                            self.cache[(answer['type'], answer['name'])]['answers'].append(answer['answer'])
+                            self.cache[str(answer['type']) + str(answer['name'])]['answers'].append(answer['answer'])
 
                         except KeyError:
-                            self.cache[(answer['type'], answer['name'])] = {
+                            self.cache[str(answer['type']) + str(answer['name'])] = {
                                 'ttl': answer['ttl'],
                                 'place time': answer['place time'],
                                 'auth': answer['auth'],
